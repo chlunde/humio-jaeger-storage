@@ -16,7 +16,23 @@ The plugin is a Go binary, which you can add to the jaeger container images.  Th
 
 ## Implementation
 
-https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc
+We implement the [StoragePlugin](https://godoc.org/github.com/jaegertracing/jaeger/plugin/storage/grpc/shared#StoragePlugin) interface, which means we must provide implementations for the following methods:
+
+```go
+type Reader interface {
+    GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
+    GetServices(ctx context.Context) ([]string, error)
+    GetOperations(ctx context.Context, service string) ([]string, error)
+    FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
+    FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
+}
+
+type Writer interface {
+    WriteSpan(span *model.Span) error
+}
+```
+
+See https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc
 
 ### Storage strategies
 
@@ -39,6 +55,10 @@ TODO: The serialized format is not best for human consuption, consider changing 
 
 ## Issues
 
+* no docker image
+* how to provide configuration
+* logging does not work
+* search for TODO
 * `head()`/`tail()`/`limit=` does not stop query when fulfilled.  This is not trivial to implement for anything except simple queries.  Humio is so fast this might be a non-issue.
 * Multiple ways to log in to get search token - no good way to renew them
 * Multi-tenancy access control
