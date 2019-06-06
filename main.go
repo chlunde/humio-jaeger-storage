@@ -208,8 +208,9 @@ func main() {
 	flag.Parse()
 
 	logger := hclog.New(&hclog.LoggerOptions{
-		Name:  "humio-jaeger-storage",
-		Level: hclog.Warn, // Only warning supported currently
+		Name:       "humio-jaeger-storage",
+		Level:      hclog.Warn, // Only warning supported currently
+		JSONFormat: true,
 	})
 
 	plugin := humioPlugin{logger: logger, repo: "sandbox", readToken: "***REMOVED***", writeToken: "***REMOVED***", humio: &humio.Client{}}
