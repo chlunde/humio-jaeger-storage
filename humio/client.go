@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
+
+	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 const DefaultBaseURL = "https://cloud.humio.com"
@@ -36,7 +40,12 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		client = c.Client
 	}
 
-	resp, err := client.Do(req.WithContext(ctx))
+	req = req.WithContext(ctx)
+	req, ht := nethttp.TraceRequest(opentracing.GlobalTracer(), req, nethttp.ComponentName("humio-client"), nethttp.ClientSpanObserver(func(span opentracing.Span, r *http.Request) {
+		ext.PeerService.Set(span, "humio")
+	}))
+	defer ht.Finish()
+	resp, err := client.Do(req)
 	// If we got an error, and the context has been canceled,
 	// the context's error is probably more useful.
 	if err != nil {

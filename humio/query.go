@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
 )
 
 type Q struct {
@@ -42,21 +44,58 @@ func RelativeTime(time string) *QueryTime {
 	return &QueryTime{relativeTime: time}
 }
 
-// RelativeTime returns a QueryTime struct for specifying a absolute
+// AbsoluteTime returns a QueryTime struct for specifying a absolute
 // start or end time from a go time.Time struct
 func AbsoluteTime(time time.Time) *QueryTime {
 	return &QueryTime{absoluteTime: time}
 }
 
-// Perform a query and response response body stream
+// Query performs a query and returns the response body stream
 // Use this for streaming responses, for smaller requests see QueryDecode
 // Caller must .Close() the returned reader
 func (c *Client) Query(ctx context.Context, repo string, q Q) (io.ReadCloser, error) {
 	var body = &bytes.Buffer{}
 	json.NewEncoder(body).Encode(q)
 
-	log.Printf("JSON: %s", body.String())
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.LogKV("query", body.String())
+	}
+
 	req, err := http.NewRequest("POST", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/query", body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json") // TODO: Support ndjson too
+
+	resp, err := c.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := expectStatus(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	return resp.Body, nil
+}
+
+// QueryJobsSync performs a query as a job and returns the response body stream
+// Use this for streaming responses, for smaller requests see QueryDecode
+// Caller must .Close() the returned reader
+func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCloser, error) {
+
+	var body = &bytes.Buffer{}
+	json.NewEncoder(body).Encode(q)
+
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		span.LogKV("query", body.String())
+	}
+
+	req, err := http.NewRequest("POST", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/queryjobs", body)
 	if err != nil {
 		return nil, err
 	}
@@ -68,27 +107,137 @@ func (c *Client) Query(ctx context.Context, repo string, q Q) (io.ReadCloser, er
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		buf := &bytes.Buffer{}
-		io.CopyN(buf, resp.Body, 1000)
-		io.Copy(ioutil.Discard, resp.Body)
-		return nil, fmt.Errorf("query: unexpected HTTP status %s: %s", resp.Status, buf.String())
+	if err := expectStatus(resp, http.StatusOK); err != nil {
+		return nil, err
 	}
 
-	return resp.Body, nil
+	var idMap map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&idMap); err != nil {
+		return nil, err
+	}
+	resp.Body.Close()
+
+	id := idMap["id"]
+
+	defer func() {
+		req, err := http.NewRequest("DELETE", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/queryjobs/"+id, nil)
+		if err != nil {
+			// log.Println(err)
+			return
+		}
+
+		resp, err := c.Do(ctx, req)
+		if err != nil {
+			// log.Println(err)
+			return
+		}
+
+		if err := expectStatus(resp, http.StatusOK); err != nil {
+			// log.Printf("query delete: %v", err)
+		}
+
+		resp.Body.Close()
+	}()
+
+	deadline, ok := ctx.Deadline()
+	if ok {
+		// If a deadline is given by the context, return partial results 1 second before expired
+		deadline = deadline.Add(-1 * time.Second)
+	} else {
+		// Otherwise, set a deadline at 15 seconds
+		deadline = time.Now().Add(15 * time.Second)
+	}
+
+	var partialEvents []byte
+
+	for time.Now().Before(deadline) {
+		req, err := http.NewRequest("GET", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/queryjobs/"+id, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Add("Content-Type", "application/json")
+		req.Header.Add("Accept", "application/json") // TODO: Support ndjson too
+		resp, err := c.Do(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := expectStatus(resp, http.StatusOK); err != nil {
+			return nil, err
+		}
+
+		var status struct {
+			Done     bool            `json:"done"`
+			Events   json.RawMessage `json:"events"`
+			Metadata struct {
+				// isAggregate      bool     `json:"isAggregate"`
+				PollAfter       int `json:"pollAfter"`
+				ProcessedBytes  int `json:"processedBytes"`
+				ProcessedEvents int `json:"processedEvents"`
+				// queryEnd         int      `json:"queryEnd"`
+				// queryStart       int      `json:"queryStart"`
+				// resultBufferSize int      `json:"resultBufferSize"`
+				// timeMillis       int      `json:"timeMillis"`
+				TotalWork int `json:"totalWork"`
+				//warnings         []string `json:"warnings"`
+				WorkDone int `json:"workDone"`
+			} `json:"metaData"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+			return nil, err
+		}
+		resp.Body.Close()
+
+		span := opentracing.SpanFromContext(ctx)
+		if span != nil {
+			span.LogKV("PollAfter", status.Metadata.PollAfter,
+				"ProcesedBytes", status.Metadata.ProcessedBytes,
+				"ProcesedEvents", status.Metadata.ProcessedEvents,
+				"TotalWork", status.Metadata.TotalWork,
+				"WorkDone", status.Metadata.WorkDone,
+			)
+		}
+
+		if status.Done {
+			return ioutil.NopCloser(bytes.NewReader(status.Events)), nil
+		}
+
+		partialEvents = []byte(status.Events)
+
+		pollAfter := 1000
+
+		if status.Metadata.PollAfter >= 10 {
+			pollAfter = status.Metadata.PollAfter
+		}
+		time.Sleep(time.Duration(pollAfter) * time.Millisecond)
+	}
+
+	// deadline close, return what we got
+	if len(partialEvents) != 0 {
+		return ioutil.NopCloser(bytes.NewReader(partialEvents)), nil
+	}
+
+	return nil, fmt.Errorf("timeout")
 }
 
-// Perform a query and decode JSON into "ret".
-// Use this for smaller responses which can be decoded and held in memory.
-// Caller must .Close() the returned reader
+// QueryDecode perform a single query decodes the complete JSON
+// response into "ret".  Use this for smaller responses which can be
+// decoded and held in memory.  Caller must .Close() the returned
+// reader. For streaming, see the Query method
 func (c *Client) QueryDecode(ctx context.Context, repo string, q Q, ret interface{}) error {
-	resp, err := c.Query(ctx, repo, q)
+	// In humio 1.8.9, "join" is not implemented by a single-request /query, only /queryjobs
+	var queryFunc = c.Query
+	if strings.Contains(q.QueryString, "join") {
+		queryFunc = c.QueryJobsSync
+	}
+
+	resp, err := queryFunc(ctx, repo, q)
 	if err != nil {
 		return err
 	}
 	defer resp.Close()
 
-	//if err := json.NewDecoder(io.TeeReader(resp, os.Stdout)).Decode(&ret); err != nil {
 	if err := json.NewDecoder(resp).Decode(&ret); err != nil {
 		return err
 	}
@@ -106,4 +255,21 @@ func EscapeFieldFilter(s string) string {
 		buf.WriteRune(char)
 	}
 	return buf.String()
+}
+
+// expectStatus returns an error with an excerpt of the payload if the
+// HTTP status was not in the expected list of status codes. The body
+// is closed.
+func expectStatus(resp *http.Response, statusCodes ...int) error {
+	for _, code := range statusCodes {
+		if resp.StatusCode == code {
+			return nil
+		}
+	}
+
+	buf := &bytes.Buffer{}
+	io.CopyN(buf, resp.Body, 1000)
+	io.Copy(ioutil.Discard, resp.Body)
+	resp.Body.Close()
+	return fmt.Errorf("unexpected HTTP status %s: %s", resp.Status, buf.String())
 }

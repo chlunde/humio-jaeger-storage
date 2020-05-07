@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
 	"net/http"
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 type Event struct {
@@ -95,10 +95,13 @@ func (i *BatchIngester) Flush(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	log.Printf("Sending %d event streams", len(i.buffer))
+	//log.Printf("Sending %d event streams", len(i.buffer))
 	if len(i.buffer) == 0 {
 		return nil
 	}
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, "Flush")
+	defer span.Finish()
 
 	// POST /api/v1/ingest/humio-structured
 	var body = &bytes.Buffer{}
@@ -107,9 +110,11 @@ func (i *BatchIngester) Flush(ctx context.Context) error {
 		return err
 	}
 
+	span.LogKV("spans", len(i.buffer), "bytes_encoded", body.Len())
+
 	req, err := http.NewRequest("POST", i.Client.GetBaseURL()+"/api/v1/ingest/humio-structured", body)
 	if err != nil {
-		log.Printf("JSON: %s", body.String())
+		// log.Printf("JSON: %s", body.String())
 		return err
 	}
 
@@ -119,16 +124,20 @@ func (i *BatchIngester) Flush(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		buf := &bytes.Buffer{}
-		io.CopyN(buf, resp.Body, 1000)
-		io.Copy(ioutil.Discard, resp.Body)
-		return fmt.Errorf("ingest: unexpected HTTP status %s: %s", resp.Status, buf.String())
+	if err := expectStatus(resp, http.StatusOK); err != nil {
+		ext.Error.Set(span, true)
+
+		// Flush buffer on some errors to avoid corrupt data
+		// stopping this node and eating all memory, like Bad Request
+
+		if resp.StatusCode < 500 { // i.e. http.StatusBadRequest
+			i.buffer = nil
+		}
+
+		return err
 	}
 
-	if resp.StatusCode < 500 {
-		i.buffer = nil
-	}
+	i.buffer = nil
 
 	return nil
 }
