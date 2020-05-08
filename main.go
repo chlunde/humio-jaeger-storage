@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/chlunde/humio-jaeger-storage/humio"
 	"github.com/chlunde/humio-jaeger-storage/plugin"
@@ -80,7 +81,12 @@ func main() {
 		Repo:       config.Repo,
 		ReadToken:  config.ReadToken,
 		WriteToken: config.WriteToken,
-		Humio:      &humio.Client{BaseURL: config.Humio, Client: &http.Client{Transport: &nethttp.Transport{}}},
+		Humio: &humio.Client{
+			BaseURL: config.Humio,
+			Client: &http.Client{
+				Transport: &nethttp.Transport{},
+				Timeout:   29 * time.Second},
+		},
 	}
 
 	grpc.Serve(&plugin)
