@@ -29,9 +29,10 @@ func (c *Client) GetBaseURL() string {
 }
 
 // Do performs the given HTTP request but sets the Authorization header
-func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, func(), error) {
+	closer := func() {}
 	if c.Token == "" {
-		return nil, errors.New("client not initialized: token not set")
+		return nil, closer, errors.New("client not initialized: token not set")
 	}
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
@@ -44,16 +45,17 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	req, ht := nethttp.TraceRequest(opentracing.GlobalTracer(), req, nethttp.ComponentName("humio-client"), nethttp.ClientSpanObserver(func(span opentracing.Span, r *http.Request) {
 		ext.PeerService.Set(span, "humio")
 	}))
-	defer ht.Finish()
+	closer = ht.Finish
 	resp, err := client.Do(req)
 	// If we got an error, and the context has been canceled,
 	// the context's error is probably more useful.
 	if err != nil {
+		ext.Error.Set(ht.Span(), true)
 		select {
 		case <-ctx.Done():
 			err = ctx.Err()
 		default:
 		}
 	}
-	return resp, err
+	return resp, closer, err
 }

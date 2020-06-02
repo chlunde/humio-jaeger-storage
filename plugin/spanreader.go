@@ -50,6 +50,10 @@ func (h *humioSpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (
 		return nil, err
 	}
 
+	if len(result) == 0 {
+		return nil, spanstore.ErrTraceNotFound
+	}
+
 	var trace model.Trace
 	trace.Spans = make([]*model.Span, 0, len(result))
 	for _, event := range result {
@@ -178,6 +182,10 @@ func (h *humioSpanReader) FindTraces(ctx context.Context, query *spanstore.Trace
 	traceIDs, err := h.findTraceIDs(ctx, query)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(traceIDs) == 0 {
+		return nil, nil
 	}
 
 	var queryPrefix = &bytes.Buffer{}

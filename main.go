@@ -85,7 +85,8 @@ func main() {
 			BaseURL: config.Humio,
 			Client: &http.Client{
 				Transport: &nethttp.Transport{},
-				Timeout:   29 * time.Second},
+				Timeout:   29 * time.Second,
+			},
 		},
 	}
 

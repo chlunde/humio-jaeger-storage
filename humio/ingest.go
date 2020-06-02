@@ -118,13 +118,14 @@ func (i *BatchIngester) Flush(ctx context.Context) error {
 		return err
 	}
 
-	resp, err := i.Client.Do(ctx, req)
+	resp, closer, err := i.Client.Do(ctx, req)
+	defer closer()
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	if err := expectStatus(resp, http.StatusOK); err != nil {
+	if err := expectStatus(ctx, resp, http.StatusOK); err != nil {
 		ext.Error.Set(span, true)
 
 		// Flush buffer on some errors to avoid corrupt data

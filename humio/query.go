@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 type Q struct {
@@ -70,12 +71,16 @@ func (c *Client) Query(ctx context.Context, repo string, q Q) (io.ReadCloser, er
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json") // TODO: Support ndjson too
 
-	resp, err := c.Do(ctx, req)
+	resp, closer, err := c.Do(ctx, req)
+	defer closer()
 	if err != nil {
+		if span != nil {
+			ext.Error.Set(span, true)
+		}
 		return nil, err
 	}
 
-	if err := expectStatus(resp, http.StatusOK); err != nil {
+	if err := expectStatus(ctx, resp, http.StatusOK); err != nil {
 		return nil, err
 	}
 
@@ -102,20 +107,24 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json") // TODO: Support ndjson too
-	resp, err := c.Do(ctx, req)
+	resp, closer, err := c.Do(ctx, req)
 	if err != nil {
+		closer()
 		return nil, err
 	}
 
-	if err := expectStatus(resp, http.StatusOK); err != nil {
+	if err := expectStatus(ctx, resp, http.StatusOK); err != nil {
+		closer()
 		return nil, err
 	}
 
 	var idMap map[string]string
 	if err := json.NewDecoder(resp.Body).Decode(&idMap); err != nil {
+		closer()
 		return nil, err
 	}
 	resp.Body.Close()
+	closer()
 
 	id := idMap["id"]
 
@@ -126,13 +135,14 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 			return
 		}
 
-		resp, err := c.Do(ctx, req)
+		resp, closer, err := c.Do(ctx, req)
+		defer closer()
 		if err != nil {
 			// log.Println(err)
 			return
 		}
 
-		if err := expectStatus(resp, http.StatusOK); err != nil {
+		if err := expectStatus(ctx, resp, http.StatusOK, http.StatusNoContent); err != nil {
 			// log.Printf("query delete: %v", err)
 		}
 
@@ -151,6 +161,7 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 	var partialEvents []byte
 
 	for time.Now().Before(deadline) {
+		// TODO extract function to clean up closer() + resp.Body.Close()
 		req, err := http.NewRequest("GET", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/queryjobs/"+id, nil)
 		if err != nil {
 			return nil, err
@@ -158,12 +169,14 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 
 		req.Header.Add("Content-Type", "application/json")
 		req.Header.Add("Accept", "application/json") // TODO: Support ndjson too
-		resp, err := c.Do(ctx, req)
+		resp, closer, err := c.Do(ctx, req)
 		if err != nil {
+			closer()
 			return nil, err
 		}
 
-		if err := expectStatus(resp, http.StatusOK); err != nil {
+		if err := expectStatus(ctx, resp, http.StatusOK); err != nil {
+			closer()
 			return nil, err
 		}
 
@@ -185,9 +198,11 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 			} `json:"metaData"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+			closer()
 			return nil, err
 		}
 		resp.Body.Close()
+		closer()
 
 		span := opentracing.SpanFromContext(ctx)
 		if span != nil {
@@ -260,7 +275,7 @@ func EscapeFieldFilter(s string) string {
 // expectStatus returns an error with an excerpt of the payload if the
 // HTTP status was not in the expected list of status codes. The body
 // is closed.
-func expectStatus(resp *http.Response, statusCodes ...int) error {
+func expectStatus(ctx context.Context, resp *http.Response, statusCodes ...int) error {
 	for _, code := range statusCodes {
 		if resp.StatusCode == code {
 			return nil
@@ -271,5 +286,12 @@ func expectStatus(resp *http.Response, statusCodes ...int) error {
 	io.CopyN(buf, resp.Body, 1000)
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
+
+	span := opentracing.SpanFromContext(ctx)
+	if span != nil {
+		ext.Error.Set(span, true)
+		span.LogEvent(buf.String())
+	}
+
 	return fmt.Errorf("unexpected HTTP status %s: %s", resp.Status, buf.String())
 }
