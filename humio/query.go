@@ -38,6 +38,18 @@ func (t QueryTime) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.absoluteTime.UnixNano() / 1e6)
 }
 
+func (t *QueryTime) String() string {
+	if t == nil {
+		return "<nil>"
+	}
+
+	if t.relativeTime != "" {
+		return t.relativeTime
+	}
+
+	return t.absoluteTime.Format(time.RFC3339)
+}
+
 // RelativeTime returns a QueryTime struct for specifying a relative
 // start or end time such as "1minute" or "24 hours".
 // See https://docs.humio.com/appendix/relative-time-syntax/
@@ -61,6 +73,8 @@ func (c *Client) Query(ctx context.Context, repo string, q Q) (io.ReadCloser, er
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
 		span.LogKV("query", body.String())
+		span.LogKV("start", q.Start.String())
+		span.LogKV("end", q.End.String())
 	}
 
 	req, err := http.NewRequest("POST", c.GetBaseURL()+"/api/v1/repositories/"+repo+"/query", body)
