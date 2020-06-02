@@ -10,6 +10,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/chlunde/humio-jaeger-storage/humio"
 	"github.com/jaegertracing/jaeger/model"
@@ -30,6 +32,12 @@ func (h *HumioPlugin) SpanReader() spanstore.Reader {
 type humioSpanReader struct {
 	plugin *HumioPlugin
 	client *humio.Client
+
+	serviceOpCache struct {
+		mu          sync.RWMutex
+		lastUpdated time.Time
+		cache       map[string]map[string]struct{}
+	}
 }
 
 func (h *humioSpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
@@ -71,43 +79,115 @@ func (h *humioSpanReader) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
 
-	var results []struct {
-		Service string `json:"#service"`
-	}
-
-	if err := h.client.QueryDecode(ctx, h.plugin.Repo, humio.Q{
-		QueryString: "top(field=#service)",
-		Start:       humio.RelativeTime("1 day"),
-	}, &results); err != nil {
+	servicesAndOps, err := h.updateAndGetServicesAndOperations(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	var ret []string
-	for _, res := range results {
-		ret = append(ret, res.Service)
+	var services []string
+	for svc := range servicesAndOps {
+		services = append(services, svc)
 	}
-	return ret, nil
+
+	return services, nil
+}
+
+type serviceAndOperation struct {
+	Service   string `json:"#service"`
+	Operation string `json:"operation"`
+}
+
+func (h *humioSpanReader) getServicesAndOperations(ctx context.Context, updated time.Time) ([]serviceAndOperation, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "getServicesAndOperations")
+	defer span.Finish()
+	var queryStart *humio.QueryTime
+	if updated.IsZero() {
+		queryStart = humio.RelativeTime("1 day")
+	} else {
+		queryStart = humio.AbsoluteTime(updated)
+	}
+
+	var results []serviceAndOperation
+	err := h.client.QueryDecode(ctx, h.plugin.Repo, humio.Q{
+		QueryString: "groupBy(#service, function=groupBy(operation))",
+		Start:       queryStart,
+	}, &results)
+
+	return results, err
+}
+
+func (h *humioSpanReader) updateAndGetServicesAndOperations(ctx context.Context) (map[string]map[string]struct{}, error) {
+	h.serviceOpCache.mu.RLock()
+	cached, updated := h.serviceOpCache.cache, h.serviceOpCache.lastUpdated
+	h.serviceOpCache.mu.RUnlock()
+
+	if time.Since(updated) < 30*time.Second {
+		return cached, nil
+	}
+
+	h.serviceOpCache.mu.Lock()
+	defer h.serviceOpCache.mu.Unlock()
+
+	thisUpdate := time.Now()
+	servicesAndOps, err := h.getServicesAndOperations(ctx, updated)
+	if err != nil {
+		return nil, err
+	}
+
+	h.serviceOpCache.lastUpdated = thisUpdate
+	cache := make(map[string]map[string]struct{})
+	for _, e := range servicesAndOps {
+		m, exists := cache[e.Service]
+		if !exists {
+			m = make(map[string]struct{})
+			cache[e.Service] = m
+		}
+		m[e.Operation] = struct{}{}
+	}
+
+	for svc, ops := range cached {
+		m, exists := cache[svc]
+		if !exists {
+			m = make(map[string]struct{})
+			cache[svc] = m
+		}
+		for op := range ops {
+			m[op] = struct{}{}
+		}
+	}
+
+	h.serviceOpCache.cache = cache
+
+	return h.serviceOpCache.cache, err
 }
 
 func (h *humioSpanReader) GetOperations(ctx context.Context, q spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 
-	var results []struct {
-		Operation string `json:"#operation"`
-	}
+	defer func() {
+		if r := recover(); r != nil {
+			h.plugin.Logger.Error(fmt.Sprintf("%+v", r))
+			h.plugin.Logger.Error(string(debug.Stack()))
+			span.LogKV("error", r)
+			ext.Error.Set(span, true)
+		}
+	}()
 
-	if err := h.client.QueryDecode(ctx, h.plugin.Repo, humio.Q{
-		QueryString: `"` + humio.EscapeFieldFilter(q.ServiceName) + `" | top(field=#operation)`,
-		Start:       humio.RelativeTime("1 day"),
-	}, &results); err != nil {
+	servicesAndOps, err := h.updateAndGetServicesAndOperations(ctx)
+	if err != nil {
 		return nil, err
 	}
 
 	var ret []spanstore.Operation
-	for _, res := range results {
-		ret = append(ret, spanstore.Operation{Name: res.Operation, SpanKind: "server" /* TODO*/})
+	for svc, svcops := range servicesAndOps {
+		if q.ServiceName == "" || svc == q.ServiceName {
+			for op := range svcops {
+				ret = append(ret, spanstore.Operation{Name: op, SpanKind: "server" /* TODO*/})
+			}
+		}
 	}
+
 	return ret, nil
 }
 
@@ -129,7 +209,7 @@ func (h *humioSpanReader) findTraceIDs(ctx context.Context, query *spanstore.Tra
 	}
 
 	if query.OperationName != "" {
-		tags[`#operation`] = query.OperationName
+		tags[`operation`] = query.OperationName
 	}
 
 	// Find trace IDs of matching spans

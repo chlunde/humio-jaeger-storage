@@ -98,11 +98,13 @@ type humioSpanWriter struct {
 }
 
 func (h *humioSpanWriter) WriteSpan(span *model.Span) error {
+	event := SpanToEvent(span)
+	event.Attributes["operation"] = span.GetOperationName()
+	event.Attributes["duration_ms"] = fmt.Sprintf("%d", span.GetDuration().Milliseconds())
+
 	h.ingest.AddEvent(map[string]string{
-		"operation":   span.GetOperationName(),
-		"service":     span.GetProcess().GetServiceName(),
-		"duration_ms": fmt.Sprintf("%d", span.GetDuration().Milliseconds()),
-	}, SpanToEvent(span))
+		"service": span.GetProcess().GetServiceName(),
+	}, event)
 	return nil
 }
 
