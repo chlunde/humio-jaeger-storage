@@ -77,7 +77,11 @@ func SpanToEvent(span *model.Span) humio.Event {
 		},
 	}
 
-	for _, tag := range span.Tags {
+	var tags []model.KeyValue
+	tags = append(tags, span.Tags...)
+	tags = append(tags, span.Process.Tags...)
+
+	for _, tag := range tags {
 		k := tag.GetKey()
 		if _, reserved := event.Attributes[k]; reserved {
 			// don't overwrite existing attributes.  TODO: prepend _ here and in search?
