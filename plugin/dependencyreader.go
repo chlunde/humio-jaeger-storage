@@ -10,11 +10,12 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 // DependencyReader can load service dependencies from storage.
 func (h *HumioPlugin) DependencyReader() dependencystore.Reader {
-	if h.spanReader == nil {
+	if h.dependencyReader == nil {
 		h.dependencyReader = &humioDependencyReader{plugin: h, client: h.getClient(h.ReadToken)}
 	}
 	return h.dependencyReader
