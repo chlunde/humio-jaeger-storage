@@ -222,6 +222,14 @@ func (h *humioSpanReader) findTraceIDs(ctx context.Context, query *spanstore.Tra
 		queryPrefix.WriteString(`" `)
 	}
 
+	if query.DurationMin.Nanoseconds() != 0 {
+		fmt.Fprintf(queryPrefix, "duration_ms > %v ", query.DurationMin.Milliseconds())
+	}
+
+	if query.DurationMax.Nanoseconds() != 0 {
+		fmt.Fprintf(queryPrefix, "duration_ms < %v ", query.DurationMax.Milliseconds())
+	}
+
 	numTraces := strconv.Itoa(query.NumTraces)
 
 	var q = humio.Q{
