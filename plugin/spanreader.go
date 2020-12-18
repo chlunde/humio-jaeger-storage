@@ -233,7 +233,7 @@ func (h *humioSpanReader) findTraceIDs(ctx context.Context, query *spanstore.Tra
 	numTraces := strconv.Itoa(query.NumTraces)
 
 	var q = humio.Q{
-		QueryString: queryPrefix.String() + `| groupBy(traceid, limit=` + numTraces + `, function=[])`,
+		QueryString: queryPrefix.String() + `| groupBy(traceid, limit=` + numTraces + `, function=[count()])`,
 		Start:       humio.AbsoluteTime(query.StartTimeMin),
 		End:         humio.AbsoluteTime(query.StartTimeMax),
 	}
