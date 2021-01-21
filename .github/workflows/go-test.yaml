@@ -6,6 +6,12 @@ jobs:
       matrix:
         go-version: [1.14.x, 1.15.x]
         os: [ubuntu-latest] #, macos-latest, windows-latest]
+
+    services:
+      humio:
+        image: docker.io/humio/humio
+        ports:
+          - 8080:8080
     runs-on: ${{ matrix.os }}
     steps:
     - name: Install Go
