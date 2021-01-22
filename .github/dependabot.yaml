@@ -12,3 +12,7 @@ updates:
     directory: "/" # Check for Dockerfile
     schedule:
       interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/plugin-init/" # Check for Dockerfile
+    schedule:
+      interval: "daily"
