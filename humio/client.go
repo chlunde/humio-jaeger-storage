@@ -2,7 +2,6 @@ package humio
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -31,9 +30,13 @@ func (c *Client) GetBaseURL() string {
 // Do performs the given HTTP request but sets the Authorization header
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, func(), error) {
 	closer := func() {}
-	if c.Token == "" {
-		return nil, closer, errors.New("client not initialized: token not set")
-	}
+
+	/*
+		if c.Token == "" {
+			return nil, closer, errors.New("client not initialized: token not set")
+		}
+	*/
+
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	client := http.DefaultClient
