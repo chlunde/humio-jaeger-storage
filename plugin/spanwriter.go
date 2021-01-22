@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/chlunde/humio-jaeger-storage/humio"
@@ -53,12 +52,12 @@ func TagValueString(tag model.KeyValue) (string, bool) {
 	}
 }
 
-func SpanToEvent(span *model.Span) humio.Event {
+func (h *humioSpanWriter) SpanToEvent(span *model.Span) humio.Event {
 	t := span.GetStartTime()
 
 	// TODO: drop this?  I think humio returns an error if the timestamp is in the future (seen in syslog)
 	if t.After(time.Now()) {
-		log.Printf("Fixing timestamp: %v", time.Since(t))
+		h.plugin.Logger.Error("Fixing timestamp", "ts", time.Since(t))
 		t = time.Now().Local()
 	}
 
@@ -68,7 +67,7 @@ func SpanToEvent(span *model.Span) humio.Event {
 	// TODO: Consider mapping tags as pure JSON k: v / map[string]string
 	err := json.NewEncoder(buf).Encode(span)
 	if err != nil {
-		log.Printf("err: %v", err)
+		h.plugin.Logger.Error("json encoding", "err", err)
 		return humio.Event{}
 	}
 	event := humio.Event{
@@ -104,7 +103,7 @@ type humioSpanWriter struct {
 }
 
 func (h *humioSpanWriter) WriteSpan(span *model.Span) error {
-	event := SpanToEvent(span)
+	event := h.SpanToEvent(span)
 	event.Attributes["operation"] = span.GetOperationName()
 	event.Attributes["duration_ms"] = fmt.Sprintf("%d", span.GetDuration().Milliseconds())
 
