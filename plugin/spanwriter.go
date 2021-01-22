@@ -27,7 +27,9 @@ func (h *HumioPlugin) SpanWriter() spanstore.Writer {
 		go func() {
 			for {
 				time.Sleep(1 * time.Second)
-				h.spanWriter.ingest.Flush(context.Background())
+				if err := h.spanWriter.ingest.Flush(context.Background()); err != nil {
+					h.Logger.Error("Flush to humio failed", "err", err)
+				}
 			}
 		}()
 	}
