@@ -302,7 +302,7 @@ func (h *humioSpanReader) FindTraces(ctx context.Context, query *spanstore.Trace
 	if err := h.client.QueryDecode(ctx, h.plugin.Repo, q, &result); err != nil {
 		return nil, err
 	}
-	span.LogEvent("backend query complete")
+	span.LogKV("event", "backend query complete")
 
 	ret := make([]*model.Trace, 0, len(result))
 	for _, event := range result {

@@ -221,8 +221,8 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 		span := opentracing.SpanFromContext(ctx)
 		if span != nil {
 			span.LogKV("PollAfter", status.Metadata.PollAfter,
-				"ProcesedBytes", status.Metadata.ProcessedBytes,
-				"ProcesedEvents", status.Metadata.ProcessedEvents,
+				"ProcessedBytes", status.Metadata.ProcessedBytes,
+				"ProcessedEvents", status.Metadata.ProcessedEvents,
 				"TotalWork", status.Metadata.TotalWork,
 				"WorkDone", status.Metadata.WorkDone,
 			)
@@ -304,7 +304,7 @@ func expectStatus(ctx context.Context, resp *http.Response, statusCodes ...int) 
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
 		ext.Error.Set(span, true)
-		span.LogEvent(buf.String())
+		span.LogKV("event", buf.String())
 	}
 
 	return fmt.Errorf("unexpected HTTP status %s: %s", resp.Status, buf.String())

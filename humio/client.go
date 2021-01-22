@@ -29,14 +29,6 @@ func (c *Client) GetBaseURL() string {
 
 // Do performs the given HTTP request but sets the Authorization header
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, func(), error) {
-	closer := func() {}
-
-	/*
-		if c.Token == "" {
-			return nil, closer, errors.New("client not initialized: token not set")
-		}
-	*/
-
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 
 	client := http.DefaultClient
@@ -48,7 +40,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, fun
 	req, ht := nethttp.TraceRequest(opentracing.GlobalTracer(), req, nethttp.ComponentName("humio-client"), nethttp.ClientSpanObserver(func(span opentracing.Span, r *http.Request) {
 		ext.PeerService.Set(span, "humio")
 	}))
-	closer = ht.Finish
+
 	resp, err := client.Do(req)
 	// If we got an error, and the context has been canceled,
 	// the context's error is probably more useful.
@@ -60,5 +52,5 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, fun
 		default:
 		}
 	}
-	return resp, closer, err
+	return resp, ht.Finish, err
 }
