@@ -25,8 +25,8 @@ type humioDependencyReader struct {
 	client *humio.Client
 }
 
-func (h *humioDependencyReader) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	span, ctx := opentracing.StartSpanFromContext(context.TODO(), "GetDependencies")
+func (h *humioDependencyReader) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetDependencies")
 	defer span.Finish()
 
 	var results []struct {
