@@ -93,7 +93,7 @@ func (h *humioSpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 type serviceAndOperation struct {
-	Service   string `json:"#service"`
+	Service   string `json:"service"`
 	Operation string `json:"operation"`
 }
 
@@ -109,7 +109,7 @@ func (h *humioSpanReader) getServicesAndOperations(ctx context.Context, updated 
 
 	var results []serviceAndOperation
 	err := h.client.QueryDecode(ctx, h.plugin.Repo, humio.Q{
-		QueryString: "groupBy(#service, function=groupBy(operation))",
+		QueryString: "groupBy(service, function=groupBy(operation))",
 		Start:       queryStart,
 	}, &results)
 
@@ -205,7 +205,7 @@ func (h *humioSpanReader) findTraceIDs(ctx context.Context, query *spanstore.Tra
 	}
 
 	if query.ServiceName != "" {
-		tags[`#service`] = query.ServiceName
+		tags[`service`] = query.ServiceName
 	}
 
 	if query.OperationName != "" {
