@@ -128,12 +128,12 @@ func (i *BatchIngester) Flush(ctx context.Context) error {
 	if err := expectStatus(ctx, resp, http.StatusOK); err != nil {
 		ext.Error.Set(span, true)
 
-		// Flush buffer on some errors to avoid corrupt data
-		// stopping this node and eating all memory, like Bad Request
-
-		if resp.StatusCode < 500 { // i.e. http.StatusBadRequest
-			i.buffer = nil
-		}
+		// Ideally, drop data only on persistent errors, and retry
+		// later on temporary errors. But for now, drop on any error
+		// because it might be difficult to know if humio has consumed
+		// any data or not.
+		// if resp.StatusCode < 500 ...
+		i.buffer = nil
 
 		return err
 	}
