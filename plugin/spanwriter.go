@@ -102,7 +102,7 @@ type humioSpanWriter struct {
 	ingest *humio.BatchIngester
 }
 
-func (h *humioSpanWriter) WriteSpan(span *model.Span) error {
+func (h *humioSpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	event := h.SpanToEvent(span)
 	event.Attributes["service"] = span.GetProcess().GetServiceName()
 	event.Attributes["operation"] = span.GetOperationName()

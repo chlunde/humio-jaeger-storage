@@ -12,6 +12,7 @@ import (
 	"github.com/chlunde/humio-jaeger-storage/humio"
 	"github.com/chlunde/humio-jaeger-storage/plugin"
 	"github.com/hashicorp/go-hclog"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go/config"
@@ -90,7 +91,9 @@ func main() {
 		},
 	}
 
-	grpc.Serve(&plugin)
+	grpc.Serve(&shared.PluginServices{
+		Store: &plugin,
+	})
 }
 
 func readConfig(path string) (*PluginConfig, error) {
