@@ -5,6 +5,7 @@ on:
 name: Test and push image
 jobs:
   test:
+    timeout-minutes: 5
     name: Build and run go test
     strategy:
       matrix:
