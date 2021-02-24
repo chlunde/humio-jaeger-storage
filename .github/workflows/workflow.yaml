@@ -25,7 +25,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Test
-      run: go test ./...
+      run: go test -test.timeout=3m -v ./...
   buildx:
     needs: [test]
     name: Build Docker image - when on master - push to GitHub Packages
