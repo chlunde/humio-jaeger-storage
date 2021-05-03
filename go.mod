@@ -8,5 +8,5 @@ require (
 	github.com/jaegertracing/jaeger v1.21.0
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/uber/jaeger-client-go v2.25.0+incompatible
+	github.com/uber/jaeger-client-go v2.28.0+incompatible
 )
