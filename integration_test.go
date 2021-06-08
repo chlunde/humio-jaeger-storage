@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -136,7 +137,8 @@ func TestIntegration(t *testing.T) {
 			panic(err)
 		}
 		if resp.StatusCode != http.StatusOK {
-			panic("status code")
+			io.Copy(os.Stdout, resp.Body)
+			t.Fatalf("status code, %v", resp.Status)
 		}
 	}
 
