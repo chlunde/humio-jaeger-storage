@@ -21,7 +21,7 @@ import (
 )
 
 func hotrodExample() *exec.Cmd {
-	cmd := exec.Command("./example-hotrod", "all", "-f", "8084")
+	cmd := exec.Command("./example-hotrod", "all", "-f", "8089")
 	cmd.Env = append(cmd.Env, "JAEGER_AGENT_HOST=localhost",
 		"JAEGER_AGENT_PORT=6831")
 
@@ -131,7 +131,7 @@ func TestIntegration(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		testID := fmt.Sprintf("%dtestID%d", i, time.Now().UnixNano())
 		testIDs = append(testIDs, testID)
-		url := fmt.Sprintf("http://localhost:8084/dispatch?customer=123&foo=%s", testID)
+		url := fmt.Sprintf("http://localhost:8089/dispatch?customer=123&foo=%s", testID)
 		resp, err := ctxhttp.Get(ctx, nil, url)
 		if err != nil {
 			panic(err)
