@@ -13,7 +13,7 @@ jobs:
 
     services:
       humio:
-        image: docker.io/humio/humio
+        image: docker.io/humio/humio:1.18.4
         ports:
           - 8080:8080
     runs-on: ${{ matrix.os }}
