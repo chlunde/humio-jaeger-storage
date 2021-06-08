@@ -25,8 +25,8 @@ func hotrodExample() *exec.Cmd {
 	cmd.Env = append(cmd.Env, "JAEGER_AGENT_HOST=localhost",
 		"JAEGER_AGENT_PORT=6831")
 
-	cmd.Stdout = ioutil.Discard
-	cmd.Stderr = ioutil.Discard
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
