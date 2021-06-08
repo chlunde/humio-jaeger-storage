@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/humio/cli/api"
+	"golang.org/x/net/context/ctxhttp"
 )
 
 func hotrodExample() *exec.Cmd {
@@ -57,13 +60,18 @@ func writeConfig(filename string, pc PluginConfig) {
 }
 
 func buildPlugin() {
-	if out, err := exec.Command("go", "build").CombinedOutput(); err != nil {
+	log.Println("buildPlugin")
+
+	if out, err := exec.Command("go", "build", "-v").CombinedOutput(); err != nil {
 		os.Stdout.Write(out)
 		panic(err)
+	} else {
+		log.Println(string(out))
 	}
 }
 
 func getJaeger() {
+	log.Println("getJaeger")
 	if out, err := exec.Command("./int-test.sh").CombinedOutput(); err != nil {
 		os.Stdout.Write(out)
 		panic(err)
@@ -80,6 +88,7 @@ func testClient() *api.Client {
 }
 
 func getIngestToken() string {
+	log.Println("getIngestToken")
 	client := testClient()
 	tok, err := client.IngestTokens().Get("sandbox", "default")
 	if err != nil {
@@ -90,6 +99,17 @@ func getIngestToken() string {
 }
 
 func TestIntegration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+
+	t.Log("pinging humio")
+	resp, err := ctxhttp.Get(ctx, nil, "http://localhost:8080")
+	if err != nil {
+		t.Fatalf("could not ping humio: %v", err)
+	}
+
+	t.Logf("ping humio: %v", resp.Status)
+
 	getJaeger()
 	buildPlugin()
 
@@ -111,7 +131,7 @@ func TestIntegration(t *testing.T) {
 		testID := fmt.Sprintf("%dtestID%d", i, time.Now().UnixNano())
 		testIDs = append(testIDs, testID)
 		url := fmt.Sprintf("http://localhost:8084/dispatch?customer=123&foo=%s", testID)
-		resp, err := http.Get(url)
+		resp, err := ctxhttp.Get(ctx, nil, url)
 		if err != nil {
 			panic(err)
 		}
@@ -125,7 +145,7 @@ func TestIntegration(t *testing.T) {
 	for _, testID := range testIDs {
 		end := fmt.Sprintf("%d", time.Now().UnixNano()/1000)
 		start := fmt.Sprintf("%d", time.Now().Add(-2*time.Minute).UnixNano()/1000)
-		resp, err := http.Get("http://localhost.localdomain:16686/api/traces?end=" + end + "&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start=" + start + "&tags=%7B%22http.url%22%3A%22%2A" + testID + "%2A%22%7D")
+		resp, err := ctxhttp.Get(ctx, nil, "http://localhost.localdomain:16686/api/traces?end="+end+"&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start="+start+"&tags=%7B%22http.url%22%3A%22%2A"+testID+"%2A%22%7D")
 		// resp, err := http.Get("http://localhost.localdomain:16686/api/traces?end=" + end + "&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start=" + start + "&tags=%7B%22http.url%22%3A%22%2Fdispatch%3Fcustomer%3D123%26foo%3D" + testID + "%22%7D")
 		if err != nil {
 			panic(err)
