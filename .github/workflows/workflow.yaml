@@ -38,7 +38,9 @@ jobs:
           %LocalAppData%\go-build
         key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
         restore-keys: |
-          ${{ runner.os }}-go-      
+          ${{ runner.os }}-go-
+    - name: Download
+      run: go mod download
     - name: Test
       run: go test -test.timeout=3m -v ./...
   buildx:
