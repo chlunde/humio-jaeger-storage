@@ -47,8 +47,10 @@ jobs:
       run: go test -c -v .
     - name: Test deps
       run: timeout 60 ./int-test.sh
-    - name: Test
-      run: timeout 60 go test -test.timeout=1m -v ./...
+    - name: Test part 1
+      run: timeout 90 go test -test.timeout=1m -v ./
+    - name: Test part 2
+      run: timeout 90 go test -test.timeout=1m -v ./...
   buildx:
     needs: [test]
     name: Build Docker image - when on master - push to GitHub Packages

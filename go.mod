@@ -9,4 +9,5 @@ require (
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190519235532-cf7a6c988dc9
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/uber/jaeger-client-go v2.25.0+incompatible
+	golang.org/x/net v0.0.0-20210525063256-abc453219eb5 // indirect
 )
