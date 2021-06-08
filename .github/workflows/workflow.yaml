@@ -41,8 +41,14 @@ jobs:
           ${{ runner.os }}-go-
     - name: Download
       run: go mod download
+    - name: Build
+      run: go build -v .
+    - name: Build tests
+      run: go test -c -v .
+    - name: Test deps
+      run: timeout 60 ./int-test.sh
     - name: Test
-      run: go test -test.timeout=3m -v ./...
+      run: timeout 60 go test -test.timeout=1m -v ./...
   buildx:
     needs: [test]
     name: Build Docker image - when on master - push to GitHub Packages
