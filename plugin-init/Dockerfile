@@ -1,4 +1,4 @@
-FROM golang:1.16.6 as build
+FROM golang:1.16.7 as build
 
 WORKDIR /src
 COPY . /src
