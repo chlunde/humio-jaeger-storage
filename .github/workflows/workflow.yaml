@@ -8,7 +8,7 @@ jobs:
     name: Build and run go test
     strategy:
       matrix:
-        go-version: [1.15.x]
+        go-version: [1.18.x]
         os: [ubuntu-latest] #, macos-latest, windows-latest]
 
     services:
@@ -41,7 +41,7 @@ jobs:
       - name: Available platforms
         run: echo ${{ steps.buildx.outputs.platforms }}
       - uses: docker/login-action@v1
-        if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -49,7 +49,7 @@ jobs:
       - name: Push to GitHub Packages
         uses: docker/build-push-action@v2.7.0
         with:
-          push: ${{ github.ref == 'refs/heads/master' }}
+          push: ${{ github.ref == 'refs/heads/main' }}
           context: .
           file: ./plugin-init/Dockerfile
           platforms: linux/amd64,linux/arm64
