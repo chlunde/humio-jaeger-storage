@@ -1,4 +1,4 @@
-FROM jaegertracing/all-in-one:1.27.0
+FROM jaegertracing/all-in-one:1.35.0
 # https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc#running-with-a-plugin
 ENV SPAN_STORAGE_TYPE="grpc-plugin"
 # https://github.com/jaegertracing/jaeger/blob/master/cmd/all-in-one/Dockerfile
