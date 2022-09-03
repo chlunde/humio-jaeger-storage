@@ -1,6 +1,17 @@
 #!/bin/bash
+if [[ ! -f conf.json ]]; then
+	echo "create conf.json first"
+	cat <<EOF
+{
+	"readToken": "...",
+	"writeToken": "...",
+	"repo": "sandbox",
+	"humio": "https://cloud.humio.com"
+}
+EOF
+	exit 1
+fi
 CGO_ENABLED=0 go build -v -ldflags '-extldflags "-static"'
-cp /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem .
 docker stop jaeger
 docker rm jaeger
 docker build -t humio-jaeger-store:latest .
@@ -14,6 +25,9 @@ docker run -d --name jaeger \
   -p 14268:14268 \
   -p 9411:9411 \
   -p 14250:14250 \
+  -v $PWD/conf.json:/etc/conf.json:ro,Z \
   humio-jaeger-store:latest
 sleep 2
 docker logs jaeger
+
+echo "Open http://localhost:16686"
