@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -22,8 +23,8 @@ func hotrodExample() *exec.Cmd {
 	cmd.Env = append(cmd.Env, "JAEGER_AGENT_HOST=localhost",
 		"JAEGER_AGENT_PORT=6831")
 
-	cmd.Stdout = ioutil.Discard
-	cmd.Stderr = ioutil.Discard
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
@@ -84,7 +85,7 @@ func getIngestToken() string {
 	client := testClient()
 	tok, err := client.IngestTokens().Get("sandbox", "default")
 	if err != nil {
-		log.Fatalf("integration tests should run with dockerized humio on port 8080, see .github/workflows/workflow.yaml: %v", err)
+		log.Fatalf("integration tests should run with dockerized humio on port 8080, see .github/workflows/workflow.yaml. docker run -p 8080:8080 --rm docker.io/humio/humio:1.18.4: %v", err)
 	}
 
 	return tok.Token
@@ -121,7 +122,7 @@ func TestIntegration(t *testing.T) {
 		}
 	}
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(6 * time.Second)
 
 	for _, testID := range testIDs {
 		end := fmt.Sprintf("%d", time.Now().UnixNano()/1000)
@@ -139,12 +140,14 @@ func TestIntegration(t *testing.T) {
 			} `json:"data"`
 		}
 
+		var body bytes.Buffer
 		var uiResp UIResp
-		if err := json.NewDecoder(resp.Body).Decode(&uiResp); err != nil {
+		if err := json.NewDecoder(io.TeeReader(resp.Body, &body)).Decode(&uiResp); err != nil {
 			panic(err)
 		}
 
 		if len(uiResp.Data) != 1 {
+			t.Log(body.String())
 			t.Fatalf("Expected 1 trace, got %d", len(uiResp.Data))
 		}
 
