@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -83,7 +84,7 @@ func getIngestToken() string {
 	client := testClient()
 	tok, err := client.IngestTokens().Get("sandbox", "default")
 	if err != nil {
-		panic(err)
+		log.Fatalf("integration tests should run with dockerized humio on port 8080, see .github/workflows/workflow.yaml: %v", err)
 	}
 
 	return tok.Token
