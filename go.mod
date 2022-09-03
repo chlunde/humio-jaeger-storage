@@ -3,7 +3,7 @@ module github.com/chlunde/humio-jaeger-storage
 go 1.19
 
 require (
-	github.com/hashicorp/go-hclog v1.2.2
+	github.com/hashicorp/go-hclog v1.3.0
 	github.com/humio/cli v0.30.0
 	github.com/jaegertracing/jaeger v1.37.0
 	github.com/opentracing-contrib/go-stdlib v1.0.0
