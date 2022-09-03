@@ -1,0 +1,6 @@
+conf.json
+example-hotrod
+humio-jaeger-storage
+jaeger-*-linux-amd64.tar.gz
+jaeger-*-linux-amd64/
+jaeger-all-in-one
