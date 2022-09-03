@@ -9,10 +9,17 @@ This is a storage plugin for Jaeger, an OpenTelemetry implementation.  It allows
 
 ## Deploying
 
-TODO: Provide docker images?
+The plugin is a Go binary, which you can add to the jaeger container images.  Then you must specify the path to the storage plugin as a startup parameter (`--grpc-storage-plugin.binary=/go/bin/humio-jaeger-storage`), [as show in the documentation](https://www.jaegertracing.io/docs/1.12/deployment/#storage-plugin).
 
-The plugin is a Go binary, which you can add to the jaeger container images.  Then you must specify the path to the storage plugin as a startup parameter (`--grpc-storage-plugin.binary=/go/bin/humio-jaeger-storage`), [as show in the documentation](https://www.jaegertracing.io/docs/1.12/deployment/#storage-plugin
-). To deploy a demo setup, see [demo.sh](demo.sh) and [Dockerfile](Dockerfile) for an example.
+With jaeger running on kubernetes, you can deploy the container provided in this repo as an init container to install the plugin. https://github.com/jaegertracing/jaeger-operator/pull/1517
+
+You should also be able to deploy it with dedicated storage nodes as of https://github.com/jaegertracing/jaeger/issues/3835
+
+To deploy a demo setup,
+* create `conf.json` (`{ "readToken": "................", "writeToken": "........-....-....-....-............", "repo": "sandbox", "humio": "https://cloud.humio.com" }`)
+* run [demo.sh](demo.sh)
+* run [generate-spans.sh](generate-spans.sh)
+* open [http://localhost:16686](http://localhost:16686/)
 
 ## Implementation
 
@@ -36,30 +43,14 @@ See https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/grpc
 
 ### Storage strategies
 
-Currently everything is stored with spans as events in humio, with tags extracted as fields to make them queriable.  In the field `payload`, the JSON-serialized representation of the internal Jaeger span data structure is stored.
-
-TODO: The serialized format is not best for human consuption, consider changing tags to map[string]string and consider storing the logs as one event per log entry.
+Currently everything is stored with spans as events in humio. In the field `payload`, the JSON-serialized representation of the internal Jaeger span data structure is stored.
 
 ### Query strategies
 
-#### If there is no query string
-##### Alt A
-1. Perform a single query to group spans to traces in Humio and return them directly.  Might be over-fetching?
-##### Alt B
-1. Perform a time constrained single query to group spans to traces in Humio and return them directly.
-2. Repeat above with new time range to fetch more data if we did not get enough hits (under-fetching)?
-
-#### If there is a query string
-1. find matching trace IDs (see Alt A and Alt B obve)
-2. The perform another query on those IDs to group spans to traces in Humio and return them directly. The start/stop time is constrained to the matching range +/- X minutes
+Check code for current implementation. It does it in two queries instead of a single query to avoid a slow and too-fancy humio query.
 
 ## Issues
 
-* no docker image
-* how to provide configuration
-* logging does not work
 * search for TODO
 * `head()`/`tail()`/`limit=` does not stop query when fulfilled.  This is not trivial to implement for anything except simple queries.  Humio is so fast this might be a non-issue.
-* Multiple ways to log in to get search token - no good way to renew them
-* Multi-tenancy access control
 * No escaping of * in field queries
