@@ -51,6 +51,7 @@ Check code for current implementation. It does it in two queries instead of a si
 
 ## Issues
 
+* humio no longer provides a docker image which we can use to integration tests without embedding a license file in this repo
 * search for TODO
 * `head()`/`tail()`/`limit=` does not stop query when fulfilled.  This is not trivial to implement for anything except simple queries.  Humio is so fast this might be a non-issue.
 * No escaping of * in field queries
