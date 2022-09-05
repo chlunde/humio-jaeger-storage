@@ -10,11 +10,14 @@ import (
 
 	"github.com/chlunde/humio-jaeger-storage/humio"
 	"github.com/chlunde/humio-jaeger-storage/plugin"
+	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/hashicorp/go-hclog"
+	hashicorpplugin "github.com/hashicorp/go-plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go/config"
+	googleGRPC "google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
@@ -90,8 +93,13 @@ func main() {
 		},
 	}
 
-	grpc.Serve(&shared.PluginServices{
+	grpc.ServeWithGRPCServer(&shared.PluginServices{
 		Store: &plugin,
+	}, func(options []googleGRPC.ServerOption) *googleGRPC.Server {
+		return hashicorpplugin.DefaultGRPCServer([]googleGRPC.ServerOption{
+			googleGRPC.UnaryInterceptor(otgrpc.OpenTracingServerInterceptor(tracer)),
+			googleGRPC.StreamInterceptor(otgrpc.OpenTracingStreamServerInterceptor(tracer)),
+		})
 	})
 }
 
