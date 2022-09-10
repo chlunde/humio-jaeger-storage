@@ -1,3 +1,6 @@
+[![OpenSSF
+Scorecard](https://api.securityscorecards.dev/projects/github.com/chlunde/humio-jaeger-storage/badge)](https://api.securityscorecards.dev/projects/github.com/chlunde/humio-jaeger-storage) [![Go Report Card](https://goreportcard.com/badge/github.com/chlunde/humio-jaeger-storage)](https://goreportcard.com/report/github.com/chlunde/humio-jaeger-storage)
+
 # humio-jaeger-storage
 
 This is a storage plugin for Jaeger, an OpenTelemetry implementation.  It allows using Humio for storage of spans/traces/logs, which can be queried using jaeger-ui or directly from Humio.  By using jaeger-ui, you get a nice user interface showing the spans.  By using humio, you can write advanced queries.
