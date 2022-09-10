@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -107,7 +106,10 @@ func (c *Client) Query(ctx context.Context, repo string, q Q) (io.ReadCloser, er
 func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCloser, error) {
 
 	var body = &bytes.Buffer{}
-	json.NewEncoder(body).Encode(q)
+	err := json.NewEncoder(body).Encode(q)
+	if err != nil {
+		return nil, err
+	}
 
 	span := opentracing.SpanFromContext(ctx)
 	if span != nil {
@@ -229,7 +231,7 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 		}
 
 		if status.Done {
-			return ioutil.NopCloser(bytes.NewReader(status.Events)), nil
+			return io.NopCloser(bytes.NewReader(status.Events)), nil
 		}
 
 		partialEvents = []byte(status.Events)
@@ -244,7 +246,7 @@ func (c *Client) QueryJobsSync(ctx context.Context, repo string, q Q) (io.ReadCl
 
 	// deadline close, return what we got
 	if len(partialEvents) != 0 {
-		return ioutil.NopCloser(bytes.NewReader(partialEvents)), nil
+		return io.NopCloser(bytes.NewReader(partialEvents)), nil
 	}
 
 	return nil, fmt.Errorf("timeout")
@@ -298,7 +300,7 @@ func expectStatus(ctx context.Context, resp *http.Response, statusCodes ...int) 
 
 	buf := &bytes.Buffer{}
 	io.CopyN(buf, resp.Body, 1000)
-	io.Copy(ioutil.Discard, resp.Body)
+	io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
 	span := opentracing.SpanFromContext(ctx)

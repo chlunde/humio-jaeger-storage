@@ -101,7 +101,7 @@ func (h *humioDependencyReader) refreshDependencies() error {
 }
 
 func (h *humioDependencyReader) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "GetDependencies")
+	span, _ := opentracing.StartSpanFromContext(ctx, "GetDependencies")
 	defer span.Finish()
 
 	h.cacheLock.Lock()

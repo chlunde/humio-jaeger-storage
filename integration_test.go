@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -53,7 +52,7 @@ func writeConfig(filename string, pc PluginConfig) {
 		panic(err)
 	}
 
-	if err := ioutil.WriteFile("config.json", buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile("config.json", buf.Bytes(), 0644); err != nil {
 		panic(err)
 	}
 }
