@@ -6,6 +6,7 @@ name: Test and push image
 jobs:
   test:
     name: Build and run go test
+    timeout-minutes: 20
     strategy:
       matrix:
         go-version: [1.19.x]
@@ -25,7 +26,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
     - name: Test
-      run: go test ./...
+      run: go test -timeout=3m ./...
+      timeout-minutes: 5
   buildx:
     needs: [test]
     name: Build Docker image - when on master - push to GitHub Packages

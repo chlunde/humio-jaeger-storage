@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -123,11 +125,23 @@ func TestIntegration(t *testing.T) {
 
 	time.Sleep(6 * time.Second)
 
+	deadline, ok := t.Deadline()
+	minute := time.Now().Add(1 * time.Minute)
+	if !ok || deadline.After(minute) {
+		deadline = minute
+	}
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
 	for _, testID := range testIDs {
 		end := fmt.Sprintf("%d", time.Now().UnixNano()/1000)
 		start := fmt.Sprintf("%d", time.Now().Add(-2*time.Minute).UnixNano()/1000)
-		resp, err := http.Get("http://localhost.localdomain:16686/api/traces?end=" + end + "&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start=" + start + "&tags=%7B%22http.url%22%3A%22%2A" + testID + "%2A%22%7D")
-		// resp, err := http.Get("http://localhost.localdomain:16686/api/traces?end=" + end + "&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start=" + start + "&tags=%7B%22http.url%22%3A%22%2Fdispatch%3Fcustomer%3D123%26foo%3D" + testID + "%22%7D")
+		req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost.localdomain:16686/api/traces?end="+end+"&limit=20&lookback=1h&maxDuration&minDuration&service=frontend&start="+start+"&tags=%7B%22http.url%22%3A%22%2A"+testID+"%2A%22%7D", nil)
+		if err != nil {
+			panic(err)
+		}
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			panic(err)
 		}
@@ -153,6 +167,11 @@ func TestIntegration(t *testing.T) {
 		if len(uiResp.Data[0].Spans) < 50 {
 			t.Errorf("Expected 50+ spans for trace")
 		}
+	}
+
+	if t.Failed() {
+		jaeger.Process.Signal(syscall.SIGABRT)
+		time.Sleep(1 * time.Second)
 	}
 
 	jaeger.Process.Kill()
