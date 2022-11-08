@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/hashicorp/go-hclog v1.3.1
-	github.com/humio/cli v0.30.1
+	github.com/humio/cli v0.30.2
 	github.com/jaegertracing/jaeger v1.39.0
 	github.com/opentracing-contrib/go-stdlib v1.0.0
 	github.com/opentracing/opentracing-go v1.2.0
